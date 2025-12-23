@@ -1,40 +1,8 @@
-// import { useState } from "react";
-// import StockTable from "./components/StockTable";
-// import StockLineChart from "./components/StockLineChart";
-// import "./App.css";
-
-// function App() {
-//   const [stock, setStock] = useState("GOOG");
-
-//   return (
-//     <div className="container">
-//       <h1>MarketPulse</h1>
-
-//       {/* Stock Input */}
-//       <label>Enter the Stock ID</label>
-//       <input
-//         type="text"
-//         value={stock}
-//         onChange={(e) => setStock(e.target.value.toUpperCase())}
-//         className="stock-input"
-//       />
-
-//       {/* Table */}
-//       <StockTable stock={stock} />
-
-//       {/* Chart */}
-//       <StockLineChart stock={stock} />
-//     </div>
-//   );
-// }
-
-// export default App;
-
 import { useState } from "react";
 import PriceChart from "./components/PriceChart";
 import HistoricalTable from "./components/HistoricalTable";
 import FinancialSummary from "./components/FinancialSummary";
-
+import StockComparisonCharts from "./components/StockComparisonCharts";
 
 import "./App.css";
 
@@ -54,7 +22,7 @@ function App() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          symbol: symbol, // ✅ REAL SYMBOL SENT
+          symbol: symbol,
         }),
       });
 
@@ -91,17 +59,21 @@ function App() {
           <p><b>Prediction:</b> {stockData.prediction}</p>
           <p><b>Confidence:</b> {stockData.confidence}%</p>
 
+          {/* 🔵 1️⃣ ACTUAL PRICE GRAPH */}
           <PriceChart data={stockData} />
 
+          {/* 🔴 2️⃣ & 🟢 3️⃣ LSTM & GRU GRAPHS */}
+          <StockComparisonCharts symbol={symbol} />
+
+          {/* 📊 FINANCIAL SUMMARY */}
           {stockData?.summary && (
-  <FinancialSummary summary={stockData.summary} />
-)}
+            <FinancialSummary summary={stockData.summary} />
+          )}
 
-
+          {/* 📅 HISTORICAL TABLE */}
           {stockData?.historical_10_days && (
-  <HistoricalTable data={stockData.historical_10_days} />
-)}
-
+            <HistoricalTable data={stockData.historical_10_days} />
+          )}
         </>
       )}
     </div>
@@ -109,6 +81,7 @@ function App() {
 }
 
 export default App;
+
 
 
 
