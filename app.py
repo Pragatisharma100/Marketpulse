@@ -29,7 +29,17 @@ st.markdown(
 # ---------------------------------------------------
 # Sidebar
 # ---------------------------------------------------
+<<<<<<< HEAD
 st.sidebar.header("Controls")
+=======
+model = load_model(r"Stock Predictions Model.keras")
+
+# ---------------------------------------------------
+# Sidebar Inputs
+# ---------------------------------------------------
+st.sidebar.title("MarketPulse Controls")
+st.sidebar.markdown("Adjust parameters to analyze stock trends.")
+>>>>>>> 1e92c3080d1b31a05191252aa5426769ff619bd0
 
 stock = st.sidebar.text_input("Stock Symbol", "GOOG")
 start = st.sidebar.date_input("Start Date", pd.to_datetime("2012-01-01"))
