@@ -1,129 +1,162 @@
 import numpy as np
 import pandas as pd
 import yfinance as yf
-from keras.models import load_model
 import streamlit as st
 import matplotlib.pyplot as plt
+from keras.models import load_model
+from sklearn.preprocessing import MinMaxScaler
 
 # ---------------------------------------------------
-# Branding
+# Page Config
 # ---------------------------------------------------
 st.set_page_config(
     page_title="MarketPulse | Stock Prediction Dashboard",
     layout="wide"
 )
 
+# ---------------------------------------------------
+# Branding
+# ---------------------------------------------------
 st.markdown(
     """
-    <h1 style="color:#2E86C1; text-align:center; font-size:42px;">
-        <strong>MarketPulse</strong>
-    </h1>
-    <h3 style="text-align:center; color:#1B2631;">
-        Stock Prediction Dashboard by <span style="color:#2E86C1;">Team L</span>
-    </h3>
-    <br>
-    """, 
+    <h1 style="text-align:center; color:#2E86C1;">MarketPulse</h1>
+    <h3 style="text-align:center;">Stock Prediction Dashboard</h3>
+    <hr>
+    """,
     unsafe_allow_html=True
 )
 
 # ---------------------------------------------------
-# Load Model
+# Sidebar
 # ---------------------------------------------------
-model = load_model(r"C:/Users/pragg/Downloads/Stock_Market_Prediction_ML/Stock Predictions Model.keras")
-
-# ---------------------------------------------------
-# Sidebar Inputs
-# ---------------------------------------------------
-st.sidebar.title("MarketPulse Controls")
-st.sidebar.markdown("Adjust parameters to analyze stock trends.")
+st.sidebar.header("Controls")
 
 stock = st.sidebar.text_input("Stock Symbol", "GOOG")
 start = st.sidebar.date_input("Start Date", pd.to_datetime("2012-01-01"))
-end = st.sidebar.date_input("End Date", pd.to_datetime("today"))
+end   = st.sidebar.date_input("End Date", pd.to_datetime("today"))
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("**Powered by LSTM Model + Technical Indicators**")
+WINDOW_SIZE = 100
+
+# ---------------------------------------------------
+# Load Models
+# ---------------------------------------------------
+lstm_model = load_model("lstm_stock_model.keras")
+gru_model  = load_model("gru_stock_model.keras")
 
 # ---------------------------------------------------
 # Fetch Data
 # ---------------------------------------------------
-st.write(f" Analyzing Stock: **{stock}**")
 data = yf.download(stock, start, end)
 
-st.subheader(" Raw Stock Data")
-st.dataframe(data, height=300)
+if data.empty:
+    st.error("No data found. Check stock symbol or date range.")
+    st.stop()
+
+st.subheader("Raw Stock Data")
+st.dataframe(data.tail(200), height=300)
 
 # ---------------------------------------------------
-# Train/Test Split
+# Close Prices
 # ---------------------------------------------------
-data_train = pd.DataFrame(data.Close[0: int(len(data)*0.80)])
-data_test = pd.DataFrame(data.Close[int(len(data)*0.80): len(data)])
+close_prices = data[['Close']]
 
-from sklearn.preprocessing import MinMaxScaler
-scaler = MinMaxScaler(feature_range=(0,1))
+# ---------------------------------------------------
+# Scaling
+# ---------------------------------------------------
+scaler = MinMaxScaler(feature_range=(0, 1))
+scaled_data = scaler.fit_transform(close_prices)
 
-pas_100_days = data_train.tail(100)
-data_test = pd.concat([pas_100_days, data_test], ignore_index=True)
-data_test_scale = scaler.fit_transform(data_test)
+# ---------------------------------------------------
+# Train/Test Split (CRITICAL FIX)
+# ---------------------------------------------------
+train_size = int(len(scaled_data) * 0.80)
+
+train_data = scaled_data[:train_size]
+test_data  = scaled_data[train_size - WINDOW_SIZE:]
+
+# ---------------------------------------------------
+# Create Sequences
+# ---------------------------------------------------
+def create_sequences(data, window):
+    X, y = [], []
+    for i in range(window, len(data)):
+        X.append(data[i-window:i])
+        y.append(data[i])
+    return np.array(X), np.array(y)
+
+X_test, y_test = create_sequences(test_data, WINDOW_SIZE)
+
+# ---------------------------------------------------
+# Predictions
+# ---------------------------------------------------
+lstm_pred = lstm_model.predict(X_test, verbose=0)
+gru_pred  = gru_model.predict(X_test, verbose=0)
+
+# Inverse scaling
+lstm_pred = scaler.inverse_transform(lstm_pred)
+gru_pred  = scaler.inverse_transform(gru_pred)
+y_actual  = scaler.inverse_transform(y_test)
+
+# ---------------------------------------------------
+# Proper Date Alignment (KEY FIX)
+# ---------------------------------------------------
+test_dates = data.index[train_size:]
 
 # ---------------------------------------------------
 # Moving Averages
 # ---------------------------------------------------
-st.subheader(" Price vs 50-Day Moving Average")
-ma_50 = data.Close.rolling(50).mean()
-fig1 = plt.figure(figsize=(10,5))
-plt.plot(ma_50, "r", label="MA50")
-plt.plot(data.Close, "g", label="Close Price")
+st.subheader("Moving Averages")
+
+ma50  = close_prices.rolling(50).mean()
+ma100 = close_prices.rolling(100).mean()
+ma200 = close_prices.rolling(200).mean()
+
+fig_ma = plt.figure(figsize=(12,6))
+plt.plot(close_prices.index, close_prices, label="Close", color="black")
+plt.plot(ma50.index, ma50, label="MA 50")
+plt.plot(ma100.index, ma100, label="MA 100")
+plt.plot(ma200.index, ma200, label="MA 200")
 plt.legend()
-st.pyplot(fig1)
-
-st.subheader(" Price vs MA50 vs MA100")
-ma_100 = data.Close.rolling(100).mean()
-fig2 = plt.figure(figsize=(10,5))
-plt.plot(ma_50, "r")
-plt.plot(ma_100, "b")
-plt.plot(data.Close, "g")
-plt.show()
-st.pyplot(fig2)
-
-st.subheader(" Price vs MA100 vs MA200")
-ma_200 = data.Close.rolling(200).mean()
-fig3 = plt.figure(figsize=(10,5))
-plt.plot(ma_100, "r")
-plt.plot(ma_200, "b")
-plt.plot(data.Close, "g")
-plt.show()
-st.pyplot(fig3)
-
-# ---------------------------------------------------
-# Prediction
-# ---------------------------------------------------
-x = []
-y = []
-
-for i in range(100, data_test_scale.shape[0]):
-    x.append(data_test_scale[i-100:i])
-    y.append(data_test_scale[i,0])
-
-x, y = np.array(x), np.array(y)
-
-predict = model.predict(x)
-scale = 1/scaler.scale_
-predict = predict * scale
-y = y * scale
-
-# ---------------------------------------------------
-# Results Plot
-# ---------------------------------------------------
-st.subheader(" Original Price vs Predicted Price")
-fig4 = plt.figure(figsize=(10,5))
-plt.plot(predict, "r", label="Predicted Price")
-plt.plot(y, "g", label="Actual Price")
-plt.xlabel("Time")
+plt.title("Price with Moving Averages")
+plt.xlabel("Date")
 plt.ylabel("Price")
-plt.show()
+st.pyplot(fig_ma)
+
+# ---------------------------------------------------
+# Prediction Plot
+# ---------------------------------------------------
+st.subheader("Actual vs Predicted Prices")
+
+fig_pred = plt.figure(figsize=(12,6))
+plt.plot(test_dates, y_actual, label="Actual Price", color="black")
+plt.plot(test_dates, lstm_pred, label="LSTM Prediction", color="blue")
+plt.plot(test_dates, gru_pred, label="GRU Prediction", color="green")
 plt.legend()
-st.pyplot(fig4)
+plt.xlabel("Date")
+plt.ylabel("Price")
+plt.title("Stock Price Prediction Comparison")
+st.pyplot(fig_pred)
+
+# ---------------------------------------------------
+# Metrics
+# ---------------------------------------------------
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+
+lstm_mae  = mean_absolute_error(y_actual, lstm_pred)
+lstm_rmse = np.sqrt(mean_squared_error(y_actual, lstm_pred))
+
+gru_mae   = mean_absolute_error(y_actual, gru_pred)
+gru_rmse  = np.sqrt(mean_squared_error(y_actual, gru_pred))
+
+st.subheader("Model Performance")
+
+metrics_df = pd.DataFrame({
+    "Model": ["LSTM", "GRU"],
+    "MAE":  [lstm_mae, gru_mae],
+    "RMSE": [lstm_rmse, gru_rmse]
+})
+
+st.table(metrics_df)
 
 # ---------------------------------------------------
 # Footer
@@ -131,10 +164,10 @@ st.pyplot(fig4)
 st.markdown(
     """
     <hr>
-    <div style="text-align:center;">
-        <p style="color:gray;">Developed as a portfolio project by <strong>Pragati Sharma</strong>.</p>
-        <p>MarketPulse © 2025</p>
-    </div>
-    """, 
+    <p style="text-align:center; color:gray;">
+        MarketPulse © 2025 | Built for Portfolio Demonstration
+    </p>
+    """,
     unsafe_allow_html=True
 )
+
