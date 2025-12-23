@@ -165,7 +165,7 @@ st.markdown(
     """
     <hr>
     <p style="text-align:center; color:gray;">
-        MarketPulse © 2025 | Built for Portfolio Demonstration
+        MarketPulse © 2025 | Built By Pragati
     </p>
     """,
     unsafe_allow_html=True
