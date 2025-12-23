@@ -29,7 +29,7 @@ st.markdown(
 # ---------------------------------------------------
 # Load Model
 # ---------------------------------------------------
-model = load_model(r"C:/Users/pragg/Downloads/Stock_Market_Prediction_ML/Stock Predictions Model.keras")
+model = load_model(r"Stock Predictions Model.keras")
 
 # ---------------------------------------------------
 # Sidebar Inputs
